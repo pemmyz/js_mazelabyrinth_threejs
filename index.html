@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Maze Game: Three.js Redux</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Replace gl-matrix with Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <!-- Three.js will append its canvas here automatically, or we attach to a container -->
+  <div id="game-container"></div>
+  
+  <!-- Countdown Overlay -->
+  <div id="countdown-layer">Bot Starts in: <span id="cnt-val">4</span></div>
+
+  <!-- Keep the 2D overlay for the map -->
+  <canvas id="mazeCanvas"></canvas>
+
+  <!-- New Options Menu -->
+  <div id="ui-layer">
+    <div id="settings-panel">
+        <h3>Settings</h3>
+        <button id="btn-modern">Preset: Modern</button>
+        <button id="btn-classic">Preset: Classic</button>
+        <hr>
+        <label><input type="checkbox" id="opt-shadows" checked> Shadows</label><br>
+        <label><input type="checkbox" id="opt-flashlight" checked> Flashlight</label><br>
+        <label><input type="checkbox" id="opt-candles" checked> Candelabras</label><br>
+        <label><input type="checkbox" id="opt-bobbing" checked> View Bobbing</label><br>
+        <div style="margin-top:10px; font-size:12px; color:#aaa;">
+            'M' for Map, 'V' for Camera, 'F' for Flashlight
+        </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
