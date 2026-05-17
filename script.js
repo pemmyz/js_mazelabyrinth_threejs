@@ -1,9 +1,9 @@
 // ================= Configuration & State =================
 const config = {
-    shadows: false,
-    flashlight: false,
+    shadows: true,
+    flashlight: true,
     candelabras: false,
-    viewBobbing: false,
+    viewBobbing: true,
     isModern: false
 };
 
