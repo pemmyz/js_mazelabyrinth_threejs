@@ -6,6 +6,9 @@ A retro-inspired 3D maze exploration game built with Three.js and vanilla JavaSc
 
 Navigate through a procedurally generated maze in first-person or third-person view while an AI bot solves the maze using the A* pathfinding algorithm. Includes dynamic lighting, flashlight effects, minimap overlay, shadows, candelabras, and customizable graphics presets.
 
+
+## Play it now: https://pemmyz.github.io/js_mazelabyrinth_threejs/
+
 ---
 
 ## 📸 Features
