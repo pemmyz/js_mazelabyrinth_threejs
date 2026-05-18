@@ -67,3 +67,30 @@ body {
   cursor: pointer;
 }
 #settings-panel button:hover { background: #555; }
+
+/* Color Picker Styling */
+.custom-color-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #2c3e50;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  margin-top: 5px;
+  border: 1px solid #444;
+  width: 150px;
+}
+.custom-color-label:hover {
+  background: #34495e;
+}
+.custom-color-label input[type="color"] {
+  cursor: pointer;
+  border: none;
+  height: 24px;
+  width: 30px;
+  padding: 0;
+  background: none;
+}

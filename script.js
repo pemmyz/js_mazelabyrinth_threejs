@@ -30,7 +30,7 @@ let moveSpeed = 10.0;
 let turnSpeed = 120.0;
 let keysDown = {};
 let isThirdPerson = false;
-let mapVisible = false;
+let mapState = 1; // 0 = Hidden, 1 = Minimap, 2 = Full Map
 let bobbingTime = 0;
 
 // Maze Params
@@ -38,10 +38,15 @@ const mazeWidth = 41;
 const mazeHeight = 41;
 const cellSize = 4; 
 
-// Textures
+// Textures & Materials
 const loader = new THREE.TextureLoader();
-const texWall = createPlaceholderTexture('#555'); 
-const texFloor = createPlaceholderTexture('#222');
+// White base so multiplying the hex color creates the exact selected color
+const texWall = createPlaceholderTexture('#ffffff'); 
+const texFloor = createPlaceholderTexture('#ffffff');
+
+// Global materials to allow live color switching
+let wallMat = new THREE.MeshStandardMaterial({ color: 0x1a4d1a, map: texWall, roughness: 0.9 });
+let floorMat = new THREE.MeshStandardMaterial({ color: 0x2d3a2d, map: texFloor, roughness: 0.8 });
 
 // ================= Initialization =================
 
@@ -309,15 +314,12 @@ function updateBot(dt) {
 // ================= 3D Construction =================
 function buildMazeMesh(data) {
     const wallGeo = new THREE.BoxGeometry(cellSize, cellSize * 2, cellSize);
-    const wallMat = new THREE.MeshStandardMaterial({ map: texWall, roughness: 0.8 });
     const floorGeo = new THREE.PlaneGeometry(cellSize, cellSize);
-    const floorMat = new THREE.MeshStandardMaterial({ map: texFloor, roughness: 0.8 });
     const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
 
     const wallGroup = new THREE.Group();
 
-    // UPDATED: Calculate offset to center mesh within the grid cell
-    // Grid 0,0 now corresponds to physical coordinates (2, 2) inside a 4x4 block
+    // Calculate offset to center mesh within the grid cell
     const halfCell = cellSize / 2;
 
     for (let z = 0; z < mazeHeight; z++) {
@@ -342,7 +344,7 @@ function buildMazeMesh(data) {
             scene.add(ceiling);
 
             if (type === '#') {
-                // Wall
+                // Wall (Hedge)
                 const wall = new THREE.Mesh(wallGeo, wallMat);
                 wall.position.set(posX, cellSize, posZ);
                 wall.castShadow = true;
@@ -388,7 +390,7 @@ function createPlayer() {
     playerObj = new THREE.Mesh(geo, mat);
     playerObj.castShadow = true;
     
-    // UPDATED: Start player at (1.5 * cellSize) which is center of cell (1,1)
+    // Start player at center of cell (1,1)
     playerObj.position.set(cellSize * 1.5, 1, cellSize * 1.5); 
     scene.add(playerObj);
 
@@ -425,7 +427,7 @@ function animate() {
     if (dt > 0.1) dt = 0.1; 
 
     updateMovement(dt);
-    updateBot(dt); // Update Bot Logic
+    updateBot(dt); 
     updateCamera();
     updateFlicker(dt);
     
@@ -460,13 +462,11 @@ function updateMovement(dt) {
         const dx = -Math.sin(rad) * speed * dt;
         const dz = -Math.cos(rad) * speed * dt;
 
-        // NEW: Independent Axis Movement & Collision Check
-        // Try X movement
+        // Independent Axis Movement & Collision Check
         if (!checkCollision(playerObj.position.x + dx, playerObj.position.z)) {
             playerObj.position.x += dx;
         }
 
-        // Try Z movement (allows wall sliding)
         if (!checkCollision(playerObj.position.x, playerObj.position.z + dz)) {
             playerObj.position.z += dz;
         }
@@ -488,10 +488,8 @@ function updateMovement(dt) {
 
 // Returns TRUE if a collision is detected (including padding radius)
 function checkCollision(x, z) {
-    // Padding radius: keeps the camera/player center away from wall edges
     const padding = 0.8; 
     
-    // Check 4 points around the player center
     const points = [
         { x: x + padding, z: z },
         { x: x - padding, z: z },
@@ -503,10 +501,7 @@ function checkCollision(x, z) {
         const gridX = Math.floor(p.x / cellSize);
         const gridZ = Math.floor(p.z / cellSize);
 
-        // Bounds check
         if (gridX < 0 || gridX >= mazeWidth || gridZ < 0 || gridZ >= mazeHeight) return true;
-        
-        // Wall check
         if (mazeData.grid[gridZ][gridX] === '#') return true;
     }
     
@@ -553,19 +548,25 @@ function draw2DMap() {
     if (!mapCtx) return;
     mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
     
-    if (!mapVisible) return;
+    if (mapState === 0) return;
 
-    mapCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    mapCtx.fillRect(0, 0, mapCanvas.width, mapCanvas.height);
+    const isMini = (mapState === 1);
+    const size = isMini ? 4 : 12; // Smaller size for minimap
+    const mapW = mazeWidth * size;
+    const mapH = mazeHeight * size;
 
-    const size = 12; 
-    const offsetX = (mapCanvas.width - mazeWidth * size) / 2;
-    const offsetY = (mapCanvas.height - mazeHeight * size) / 2;
+    // Minimap in top-left, Fullmap centered
+    const offsetX = isMini ? 15 : (mapCanvas.width - mapW) / 2;
+    const offsetY = isMini ? 15 : (mapCanvas.height - mapH) / 2;
+
+    mapCtx.fillStyle = isMini ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0.7)";
+    mapCtx.fillRect(offsetX - 5, offsetY - 5, mapW + 10, mapH + 10);
 
     for(let z=0; z<mazeHeight; z++){
         for(let x=0; x<mazeWidth; x++){
             let cell = mazeData.grid[z][x];
-            if(cell === '#') mapCtx.fillStyle = "#444";
+            // Use current hex color for the wall map pixels
+            if(cell === '#') mapCtx.fillStyle = document.getElementById('wallColorPicker').value || "#1a4d1a";
             else if(cell === 'E') mapCtx.fillStyle = "red";
             else mapCtx.fillStyle = "#222"; 
             
@@ -582,11 +583,37 @@ function draw2DMap() {
             mapCtx.fillRect(offsetX + x*size, offsetY + z*size, size, size);
         }
     }
+
+    // Draw A* Path for Player (Yellow line)
+    const endNode = { x: mazeWidth - 2, y: mazeHeight - 2 };
+    let playerPath = solveAStar(mazeData.grid, playerGridPos, endNode);
+    if (playerPath && playerPath.length > 0) {
+        mapCtx.strokeStyle = "rgba(255, 255, 0, 0.7)";
+        mapCtx.lineWidth = isMini ? 1 : 2;
+        mapCtx.beginPath();
+        mapCtx.moveTo(offsetX + playerPath[0].x * size + size/2, offsetY + playerPath[0].y * size + size/2);
+        for (let i = 1; i < playerPath.length; i++) {
+            mapCtx.lineTo(offsetX + playerPath[i].x * size + size/2, offsetY + playerPath[i].y * size + size/2);
+        }
+        mapCtx.stroke();
+    }
+
+    // Draw A* Path for Bot (Magenta line)
+    if (botPath && botPath.length > 0 && botCurrentIndex < botPath.length) {
+        mapCtx.strokeStyle = "rgba(255, 0, 255, 0.7)";
+        mapCtx.lineWidth = isMini ? 1 : 2;
+        mapCtx.beginPath();
+        mapCtx.moveTo(offsetX + botPath[botCurrentIndex].x * size + size/2, offsetY + botPath[botCurrentIndex].y * size + size/2);
+        for (let i = botCurrentIndex + 1; i < botPath.length; i++) {
+            mapCtx.lineTo(offsetX + botPath[i].x * size + size/2, offsetY + botPath[i].y * size + size/2);
+        }
+        mapCtx.stroke();
+    }
 }
 
 function onKeyDown(e) {
     const k = e.key.toLowerCase();
-    if(k === 'm') mapVisible = !mapVisible;
+    if(k === 'm') mapState = (mapState + 1) % 3; // cycles 0, 1, 2
     if(k === 'v') isThirdPerson = !isThirdPerson;
     if(k === 'f') {
         config.flashlight = !config.flashlight;
@@ -612,6 +639,21 @@ function setupUI() {
     bind('opt-flashlight', 'flashlight');
     bind('opt-candles', 'candelabras');
     bind('opt-bobbing', 'viewBobbing');
+
+    // Color Pickers logic
+    const wallPicker = document.getElementById('wallColorPicker');
+    if(wallPicker) {
+        wallPicker.addEventListener('input', (e) => {
+            wallMat.color.set(e.target.value);
+        });
+    }
+
+    const floorPicker = document.getElementById('floorColorPicker');
+    if(floorPicker) {
+        floorPicker.addEventListener('input', (e) => {
+            floorMat.color.set(e.target.value);
+        });
+    }
 
     const btnModern = document.getElementById('btn-modern');
     if(btnModern) {
@@ -656,7 +698,8 @@ function createPlaceholderTexture(color) {
     ctx.fillStyle = color;
     ctx.fillRect(0,0,64,64);
     for(let i=0; i<200; i++) {
-        ctx.fillStyle = `rgba(255,255,255,0.1)`;
+        // Dark dots so they show up over white/tinted background
+        ctx.fillStyle = `rgba(0,0,0,0.15)`; 
         ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
     }
     const tex = new THREE.CanvasTexture(cvs);
