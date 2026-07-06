@@ -30,7 +30,9 @@ let moveSpeed = 10.0;
 let turnSpeed = 120.0;
 let keysDown = {};
 let isThirdPerson = false;
-let mapState = 1; // 0 = Hidden, 1 = Minimap, 2 = Full Map
+
+// Map State
+let showFullMap = false; // Toggled by 'M' key
 let bobbingTime = 0;
 
 // Maze Params
@@ -40,11 +42,9 @@ const cellSize = 4;
 
 // Textures & Materials
 const loader = new THREE.TextureLoader();
-// White base so multiplying the hex color creates the exact selected color
 const texWall = createPlaceholderTexture('#ffffff'); 
 const texFloor = createPlaceholderTexture('#ffffff');
 
-// Global materials to allow live color switching
 let wallMat = new THREE.MeshStandardMaterial({ color: 0x1a4d1a, map: texWall, roughness: 0.9 });
 let floorMat = new THREE.MeshStandardMaterial({ color: 0x2d3a2d, map: texFloor, roughness: 0.8 });
 
@@ -59,11 +59,9 @@ const screenElement = document.getElementById("screen");
 // ================= Initialization =================
 
 function init() {
-    // 1. Setup Three.js Scene
     scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x000000, 0.03); 
 
-    // Camera and Renderer setup matching current window viewport size
     camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 100);
     
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -72,28 +70,17 @@ function init() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game-container').appendChild(renderer.domElement);
 
-    // 2. Generate Maze Logic
     mazeData = createMap(mazeWidth, mazeHeight);
-
-    // 3. Build 3D World
     buildMazeMesh(mazeData);
-
-    // 4. Player Setup
     createPlayer();
-
-    // 5. Bot Setup (A*)
     initBot();
-
-    // 6. Lighting
     setupLights();
 
-    // 7. 2D Map Canvas
     mapCanvas = document.getElementById("mazeCanvas");
     mapCanvas.width = window.innerWidth;
     mapCanvas.height = window.innerHeight;
     mapCtx = mapCanvas.getContext("2d");
 
-    // 8. Event Listeners
     window.addEventListener('resize', scaleGame, false);
     window.addEventListener('fullscreenchange', scaleGame);
     window.addEventListener('webkitfullscreenchange', scaleGame);
@@ -103,12 +90,11 @@ function init() {
     
     mobileToggleBtn.addEventListener('click', goFull);
 
-    // 9. Setup UI & Controls
     setupUI();
     updateCheckboxes();
     setupMobileControls();
 
-    scaleGame(); // Initial Resize Fit
+    scaleGame(); 
     animate();
 }
 
@@ -128,7 +114,6 @@ function scaleGame() {
         mapCanvas.height = h;
     }
     
-    // Clear scaling transforms since view naturally matches window viewport
     screenElement.style.transform = 'none';
     
     if (isFullscreen) {
@@ -210,10 +195,8 @@ function createMap(w, h) {
         }
     }
     
-    // Exit
     map[h-2][w-2] = 'E';
     
-    // Candelabras
     let candles = [];
     for(let y=1; y<h-1; y++){
         for(let x=1; x<w-1; x++){
@@ -391,28 +374,24 @@ function buildMazeMesh(data) {
             let posX = (x * cellSize) + halfCell;
             let posZ = (z * cellSize) + halfCell;
 
-            // Floor
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI / 2;
             floor.position.set(posX, 0, posZ);
             floor.receiveShadow = true;
             scene.add(floor);
 
-            // Ceiling
             const ceiling = new THREE.Mesh(floorGeo, ceilingMat);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.set(posX, cellSize * 2, posZ);
             scene.add(ceiling);
 
             if (type === '#') {
-                // Wall
                 const wall = new THREE.Mesh(wallGeo, wallMat);
                 wall.position.set(posX, cellSize, posZ);
                 wall.castShadow = true;
                 wall.receiveShadow = true;
                 wallGroup.add(wall);
             } else if (type === 'E') {
-                // Exit
                 const exitGeo = new THREE.BoxGeometry(cellSize/2, cellSize, cellSize/2);
                 const exitMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x550000 });
                 const exitMesh = new THREE.Mesh(exitGeo, exitMat);
@@ -593,9 +572,16 @@ function draw2DMap() {
     if (!mapCtx) return;
     mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
     
-    if (mapState === 0) return;
+    // Always draw Minimap (isMini = true)
+    drawSingleMap(true);
 
-    const isMini = (mapState === 1);
+    // Conditionally draw Full Map (isMini = false)
+    if (showFullMap) {
+        drawSingleMap(false);
+    }
+}
+
+function drawSingleMap(isMini) {
     const size = isMini ? 4 : 12; 
     const mapW = mazeWidth * size;
     const mapH = mazeHeight * size;
@@ -625,7 +611,6 @@ function draw2DMap() {
         }
     }
 
-    // Draw A* Path for Player (Yellow line)
     const endNode = { x: mazeWidth - 2, y: mazeHeight - 2 };
     let playerPath = solveAStar(mazeData.grid, playerGridPos, endNode);
     if (playerPath && playerPath.length > 0) {
@@ -639,7 +624,6 @@ function draw2DMap() {
         mapCtx.stroke();
     }
 
-    // Draw A* Path for Bot (Magenta line)
     if (botPath && botPath.length > 0 && botCurrentIndex < botPath.length) {
         mapCtx.strokeStyle = "rgba(255, 0, 255, 0.7)";
         mapCtx.lineWidth = isMini ? 1 : 2;
@@ -654,7 +638,11 @@ function draw2DMap() {
 
 function onKeyDown(e) {
     const k = e.key.toLowerCase();
-    if(k === 'm') mapState = (mapState + 1) % 3; 
+    
+    if(k === 'm') {
+        showFullMap = !showFullMap; // Toggle the center full-sized map overlay
+    }
+    
     if(k === 'v') isThirdPerson = !isThirdPerson;
     if(k === 'f') {
         config.flashlight = !config.flashlight;
@@ -673,7 +661,6 @@ function setupUI() {
     bind('opt-candles', 'candelabras');
     bind('opt-bobbing', 'viewBobbing');
 
-    // Toggle Settings Visibility
     const toggleSettingsBtn = document.getElementById('toggle-settings-btn');
     const settingsPanel = document.getElementById('settings-panel');
     if (toggleSettingsBtn && settingsPanel) {
@@ -688,7 +675,6 @@ function setupUI() {
         });
     }
 
-    // Color Pickers logic
     const wallPicker = document.getElementById('wallColorPicker');
     if(wallPicker) {
         wallPicker.addEventListener('input', (e) => {
