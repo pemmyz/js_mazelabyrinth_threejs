@@ -7,6 +7,10 @@ const config = {
     isModern: false
 };
 
+// Base Resolution for scaling logic
+const BASE_WIDTH = 960;
+const BASE_HEIGHT = 720;
+
 // Game State
 let mazeData;
 let playerObj, playerHead; // Three.js objects
@@ -18,19 +22,19 @@ let mapCanvas, mapCtx;
 let botObj;
 let botPath = [];
 let botCurrentIndex = 0;
-let botState = 'IDLE'; // IDLE, ROTATING, MOVING, FINISHED
+let botState = 'IDLE'; 
 let botTargetAngle = 0;
 let botCountdown = 4.0;
 let botRunning = false;
 
 // Movement & Logic
 let playerGridPos = { x: 1, y: 1 };
-let playerAngle = 0; // Degrees
+let playerAngle = 0; 
 let moveSpeed = 10.0;
 let turnSpeed = 120.0;
 let keysDown = {};
 let isThirdPerson = false;
-let mapState = 1; // 0 = Hidden, 1 = Minimap, 2 = Full Map
+let mapState = 1; 
 let bobbingTime = 0;
 
 // Maze Params
@@ -40,61 +44,114 @@ const cellSize = 4;
 
 // Textures & Materials
 const loader = new THREE.TextureLoader();
-// White base so multiplying the hex color creates the exact selected color
 const texWall = createPlaceholderTexture('#ffffff'); 
 const texFloor = createPlaceholderTexture('#ffffff');
 
-// Global materials to allow live color switching
 let wallMat = new THREE.MeshStandardMaterial({ color: 0x1a4d1a, map: texWall, roughness: 0.9 });
 let floorMat = new THREE.MeshStandardMaterial({ color: 0x2d3a2d, map: texFloor, roughness: 0.8 });
+
+// DOM Elements for Fullscreen & Mobile
+const mobileToggleBtn = document.getElementById('mobile-btn');
+const mobileControls = document.getElementById('mobile-controls');
+const mobileLeftBtn = document.getElementById('mobile-left');
+const mobileRightBtn = document.getElementById('mobile-right');
+const mobileUpBtn = document.getElementById('mobile-up');
+const screenElement = document.getElementById("screen");
 
 // ================= Initialization =================
 
 function init() {
-    // 1. Setup Three.js Scene
     scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x000000, 0.03); 
 
-    camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 100);
+    // Setup Camera and Renderer using the fixed base sizes
+    camera = new THREE.PerspectiveCamera(90, BASE_WIDTH / BASE_HEIGHT, 0.1, 100);
     
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(BASE_WIDTH, BASE_HEIGHT);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game-container').appendChild(renderer.domElement);
 
-    // 2. Generate Maze Logic
     mazeData = createMap(mazeWidth, mazeHeight);
-
-    // 3. Build 3D World
     buildMazeMesh(mazeData);
-
-    // 4. Player Setup
     createPlayer();
-
-    // 5. Bot Setup (A*)
     initBot();
-
-    // 6. Lighting
     setupLights();
 
-    // 7. 2D Map Canvas
     mapCanvas = document.getElementById("mazeCanvas");
-    mapCanvas.width = window.innerWidth;
-    mapCanvas.height = window.innerHeight;
+    mapCanvas.width = BASE_WIDTH;
+    mapCanvas.height = BASE_HEIGHT;
     mapCtx = mapCanvas.getContext("2d");
 
-    // 8. Event Listeners
-    window.addEventListener('resize', onWindowResize, false);
+    // Event Listeners
+    window.addEventListener('resize', scaleGame, false);
+    window.addEventListener('fullscreenchange', scaleGame);
+    window.addEventListener('webkitfullscreenchange', scaleGame);
+
     window.addEventListener('keydown', (e) => { keysDown[e.key.toLowerCase()] = true; onKeyDown(e); });
     window.addEventListener('keyup', (e) => keysDown[e.key.toLowerCase()] = false);
+    mobileToggleBtn.addEventListener('click', goFull);
     
-    // 9. Setup UI
     setupUI();
     updateCheckboxes();
+    setupMobileControls();
 
-    // Start Loop
+    scaleGame(); // Initial Fit Scale
     animate();
+}
+
+// ================= Scaling & Mobile Logic =================
+
+function scaleGame() {
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+    
+    // Scale optimally to fit either normal window or fullscreen view entirely
+    const scale = Math.min(
+        window.innerWidth / BASE_WIDTH,
+        window.innerHeight / BASE_HEIGHT
+    );
+    
+    screenElement.style.transform = `scale(${scale})`;
+    
+    if (isFullscreen) document.body.classList.add('mobile-mode');
+    else document.body.classList.remove('mobile-mode');
+}
+
+function goFull() {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}
+
+function setupMobileControls() {
+    if (!mobileControls) return;
+
+    const addControlListener = (element, key) => {
+        const pressKey = (e) => {
+            if(e.cancelable) e.preventDefault(); 
+            keysDown[key] = true;
+        };
+        const releaseKey = (e) => {
+            if(e.cancelable) e.preventDefault();
+            keysDown[key] = false;
+        };
+
+        element.addEventListener('touchstart', pressKey, { passive: false });
+        element.addEventListener('touchend', releaseKey, { passive: false });
+        element.addEventListener('touchcancel', releaseKey, { passive: false });
+        
+        element.addEventListener('mousedown', pressKey);
+        element.addEventListener('mouseup', releaseKey);
+        element.addEventListener('mouseleave', (e) => {
+            if (e.buttons === 1) { releaseKey(e); }
+        });
+    };
+
+    // Map custom on-screen buttons directly to our keyboard logic keys
+    addControlListener(mobileLeftBtn, 'a'); 
+    addControlListener(mobileRightBtn, 'd'); 
+    addControlListener(mobileUpBtn, 'w');    
 }
 
 // ================= Maze Generation (DFS Algorithm) =================
@@ -133,10 +190,8 @@ function createMap(w, h) {
         }
     }
     
-    // Exit
     map[h-2][w-2] = 'E';
     
-    // Candelabras
     let candles = [];
     for(let y=1; y<h-1; y++){
         for(let x=1; x<w-1; x++){
@@ -150,20 +205,16 @@ function createMap(w, h) {
 }
 
 // ================= A* Algorithm & Bot =================
-
 function initBot() {
-    // Create Bot Mesh (Red Cylinder)
     const geo = new THREE.CylinderGeometry(0.3, 0.3, 1.6, 16);
     const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
     botObj = new THREE.Mesh(geo, mat);
     botObj.castShadow = true;
     
-    // Start at same position as player (1,1)
     const halfCell = cellSize / 2;
     botObj.position.set((1 * cellSize) + halfCell, 1, (1 * cellSize) + halfCell);
     scene.add(botObj);
 
-    // Solve Path
     const startNode = { x: 1, y: 1 };
     const endNode = { x: mazeWidth - 2, y: mazeHeight - 2 };
     botPath = solveAStar(mazeData.grid, startNode, endNode);
@@ -185,7 +236,6 @@ function solveAStar(grid, start, end) {
     fScore[key(start)] = Math.abs(start.x - end.x) + Math.abs(start.y - end.y);
 
     while (openSet.length > 0) {
-        // Get lowest fScore
         let current = openSet.reduce((a, b) => (fScore[key(a)] < fScore[key(b)] ? a : b));
 
         if (current.x === end.x && current.y === end.y) {
@@ -195,13 +245,13 @@ function solveAStar(grid, start, end) {
         openSet = openSet.filter(n => n !== current);
         closedSet.add(key(current));
 
-        const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}]; // 4-way
+        const dirs = [{x:0, y:-1}, {x:0, y:1}, {x:-1, y:0}, {x:1, y:0}]; 
         
         for (let d of dirs) {
             let neighbor = { x: current.x + d.x, y: current.y + d.y };
             let nKey = key(neighbor);
 
-            if (grid[neighbor.y][neighbor.x] === '#') continue; // Wall
+            if (grid[neighbor.y][neighbor.x] === '#') continue; 
             if (closedSet.has(nKey)) continue;
 
             let tentativeG = gScore[key(current)] + 1;
@@ -217,7 +267,7 @@ function solveAStar(grid, start, end) {
             fScore[nKey] = gScore[nKey] + (Math.abs(neighbor.x - end.x) + Math.abs(neighbor.y - end.y));
         }
     }
-    return []; // No path found
+    return [];
 }
 
 function reconstructPath(cameFrom, current) {
@@ -232,7 +282,6 @@ function reconstructPath(cameFrom, current) {
 }
 
 function updateBot(dt) {
-    // 1. Handle Countdown
     if (!botRunning) {
         botCountdown -= dt;
         const ui = document.getElementById('cnt-val');
@@ -246,12 +295,11 @@ function updateBot(dt) {
         return;
     }
 
-    // 2. State Machine
     if (botState === 'FINISHED') return;
 
     const halfCell = cellSize / 2;
-    const speed = 6.0; // Units per second
-    const rotSpeed = 5.0; // Radians per second
+    const speed = 6.0; 
+    const rotSpeed = 5.0; 
 
     if (botState === 'NEXT_NODE') {
         botCurrentIndex++;
@@ -259,7 +307,6 @@ function updateBot(dt) {
             botState = 'FINISHED';
             return;
         }
-        // Calculate target rotation
         const nextNode = botPath[botCurrentIndex];
         const worldX = (nextNode.x * cellSize) + halfCell;
         const worldZ = (nextNode.y * cellSize) + halfCell;
@@ -267,17 +314,12 @@ function updateBot(dt) {
         const dx = worldX - botObj.position.x;
         const dz = worldZ - botObj.position.z;
         
-        // Determine angle (0, -PI/2, PI, PI/2)
-        botTargetAngle = Math.atan2(dx, dz); // Using (x,z) logic for rotationY
-        
+        botTargetAngle = Math.atan2(dx, dz); 
         botState = 'ROTATING';
     }
 
     if (botState === 'ROTATING') {
-        // Smoothly rotate towards target angle
         let currentRot = botObj.rotation.y;
-        
-        // Wrap angles to ensure shortest turn
         let diff = botTargetAngle - currentRot;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
@@ -299,7 +341,6 @@ function updateBot(dt) {
         const dist = dir.length();
 
         if (dist < 0.1) {
-            // Snap to middle
             botObj.position.x = worldTargetX;
             botObj.position.z = worldTargetZ;
             botState = 'NEXT_NODE';
@@ -316,42 +357,33 @@ function buildMazeMesh(data) {
     const wallGeo = new THREE.BoxGeometry(cellSize, cellSize * 2, cellSize);
     const floorGeo = new THREE.PlaneGeometry(cellSize, cellSize);
     const ceilingMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-
     const wallGroup = new THREE.Group();
-
-    // Calculate offset to center mesh within the grid cell
     const halfCell = cellSize / 2;
 
     for (let z = 0; z < mazeHeight; z++) {
         for (let x = 0; x < mazeWidth; x++) {
             let type = data.grid[z][x];
-            
-            // Align 3D position to the center of the logical grid cell
             let posX = (x * cellSize) + halfCell;
             let posZ = (z * cellSize) + halfCell;
 
-            // Floor
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI / 2;
             floor.position.set(posX, 0, posZ);
             floor.receiveShadow = true;
             scene.add(floor);
 
-            // Ceiling
             const ceiling = new THREE.Mesh(floorGeo, ceilingMat);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.set(posX, cellSize * 2, posZ);
             scene.add(ceiling);
 
             if (type === '#') {
-                // Wall (Hedge)
                 const wall = new THREE.Mesh(wallGeo, wallMat);
                 wall.position.set(posX, cellSize, posZ);
                 wall.castShadow = true;
                 wall.receiveShadow = true;
                 wallGroup.add(wall);
             } else if (type === 'E') {
-                // Exit
                 const exitGeo = new THREE.BoxGeometry(cellSize/2, cellSize, cellSize/2);
                 const exitMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x550000 });
                 const exitMesh = new THREE.Mesh(exitGeo, exitMat);
@@ -361,11 +393,7 @@ function buildMazeMesh(data) {
         }
     }
     scene.add(wallGroup);
-
-    // Add Candelabras centered
-    data.candles.forEach(pos => {
-        createCandelabra((pos.x * cellSize) + halfCell, (pos.y * cellSize) + halfCell);
-    });
+    data.candles.forEach(pos => createCandelabra((pos.x * cellSize) + halfCell, (pos.y * cellSize) + halfCell));
 }
 
 function createCandelabra(x, z) {
@@ -373,12 +401,10 @@ function createCandelabra(x, z) {
     const standMat = new THREE.MeshStandardMaterial({ color: 0x886600, metalness: 0.8 });
     const stand = new THREE.Mesh(standGeo, standMat);
     stand.position.set(x, 0.75, z);
-    stand.castShadow = false; 
     scene.add(stand);
 
     const bulb = new THREE.PointLight(0xffaa00, 1, 12); 
     bulb.position.set(0, 0.8, 0);
-    bulb.castShadow = false; 
     stand.add(bulb);
     
     candleLights.push({ light: bulb, baseInt: 1.0, seed: Math.random(), parent: stand });
@@ -389,17 +415,13 @@ function createPlayer() {
     const mat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
     playerObj = new THREE.Mesh(geo, mat);
     playerObj.castShadow = true;
-    
-    // Start player at center of cell (1,1)
     playerObj.position.set(cellSize * 1.5, 1, cellSize * 1.5); 
     scene.add(playerObj);
 
-    // Head
     playerHead = new THREE.Object3D();
     playerHead.position.set(0, 0.5, 0);
     playerObj.add(playerHead);
 
-    // Flashlight
     flashLight = new THREE.SpotLight(0xffffff, 2);
     flashLight.position.set(0.2, 0, 0);
     flashLight.target.position.set(0, 0, -5);
@@ -417,7 +439,6 @@ function setupLights() {
 }
 
 // ================= Game Loop & Logic =================
-
 const clock = new THREE.Clock();
 
 function animate() {
@@ -432,13 +453,7 @@ function animate() {
     updateFlicker(dt);
     
     if(flashLight) flashLight.visible = config.flashlight;
-    
-    if (config.isModern) {
-        ambientLight.intensity = 0.05; 
-    } else {
-        ambientLight.intensity = 0.6; 
-    }
-
+    ambientLight.intensity = config.isModern ? 0.05 : 0.6; 
     renderer.shadowMap.enabled = config.shadows;
     candleLights.forEach(c => { c.parent.visible = config.candelabras; });
 
@@ -447,12 +462,10 @@ function animate() {
 }
 
 function updateMovement(dt) {
-    // Rotation
     if (keysDown['a'] || keysDown['arrowleft']) playerAngle += turnSpeed * dt;
     if (keysDown['d'] || keysDown['arrowright']) playerAngle -= turnSpeed * dt;
     playerAngle = playerAngle % 360;
 
-    // Movement
     let speed = 0;
     if (keysDown['w'] || keysDown['arrowup']) speed = moveSpeed;
     if (keysDown['s'] || keysDown['arrowdown']) speed = -moveSpeed;
@@ -462,34 +475,24 @@ function updateMovement(dt) {
         const dx = -Math.sin(rad) * speed * dt;
         const dz = -Math.cos(rad) * speed * dt;
 
-        // Independent Axis Movement & Collision Check
         if (!checkCollision(playerObj.position.x + dx, playerObj.position.z)) {
             playerObj.position.x += dx;
         }
-
         if (!checkCollision(playerObj.position.x, playerObj.position.z + dz)) {
             playerObj.position.z += dz;
         }
-        
-        // Bobbing
         if(config.viewBobbing) bobbingTime += dt * 10;
-
     } else {
         bobbingTime = THREE.MathUtils.lerp(bobbingTime, 0, dt * 5);
     }
 
-    // Apply rotation
     playerObj.rotation.y = THREE.MathUtils.degToRad(playerAngle);
-    
-    // Update Map Grid Pos
     playerGridPos.x = Math.floor(playerObj.position.x / cellSize);
     playerGridPos.y = Math.floor(playerObj.position.z / cellSize);
 }
 
-// Returns TRUE if a collision is detected (including padding radius)
 function checkCollision(x, z) {
     const padding = 0.8; 
-    
     const points = [
         { x: x + padding, z: z },
         { x: x - padding, z: z },
@@ -500,11 +503,9 @@ function checkCollision(x, z) {
     for (let p of points) {
         const gridX = Math.floor(p.x / cellSize);
         const gridZ = Math.floor(p.z / cellSize);
-
         if (gridX < 0 || gridX >= mazeWidth || gridZ < 0 || gridZ >= mazeHeight) return true;
         if (mazeData.grid[gridZ][gridX] === '#') return true;
     }
-    
     return false;
 }
 
@@ -517,16 +518,13 @@ function updateCamera() {
         const height = 4.0;
         const cx = playerObj.position.x + Math.sin(rad) * dist;
         const cz = playerObj.position.z + Math.cos(rad) * dist;
-        
         camera.position.lerp(new THREE.Vector3(cx, height + bobY, cz), 0.1);
         camera.lookAt(playerObj.position.x, playerObj.position.y + 1, playerObj.position.z);
     } else {
-        // 1st Person
         const headPos = new THREE.Vector3();
         playerHead.getWorldPosition(headPos);
         camera.position.copy(headPos);
         camera.position.y += bobY; 
-        
         const lookX = camera.position.x - Math.sin(rad);
         const lookZ = camera.position.z - Math.cos(rad);
         camera.lookAt(lookX, camera.position.y, lookZ);
@@ -543,7 +541,6 @@ function updateFlicker(dt) {
 }
 
 // ================= UI & 2D Map =================
-
 function draw2DMap() {
     if (!mapCtx) return;
     mapCtx.clearRect(0, 0, mapCanvas.width, mapCanvas.height);
@@ -551,11 +548,10 @@ function draw2DMap() {
     if (mapState === 0) return;
 
     const isMini = (mapState === 1);
-    const size = isMini ? 4 : 12; // Smaller size for minimap
+    const size = isMini ? 4 : 12; 
     const mapW = mazeWidth * size;
     const mapH = mazeHeight * size;
 
-    // Minimap in top-left, Fullmap centered
     const offsetX = isMini ? 15 : (mapCanvas.width - mapW) / 2;
     const offsetY = isMini ? 15 : (mapCanvas.height - mapH) / 2;
 
@@ -565,15 +561,12 @@ function draw2DMap() {
     for(let z=0; z<mazeHeight; z++){
         for(let x=0; x<mazeWidth; x++){
             let cell = mazeData.grid[z][x];
-            // Use current hex color for the wall map pixels
             if(cell === '#') mapCtx.fillStyle = document.getElementById('wallColorPicker').value || "#1a4d1a";
             else if(cell === 'E') mapCtx.fillStyle = "red";
             else mapCtx.fillStyle = "#222"; 
             
-            // Highlight player
             if(z === playerGridPos.y && x === playerGridPos.x) mapCtx.fillStyle = "lime";
             
-            // Highlight Bot
             if (botObj) {
                 const bGx = Math.floor(botObj.position.x / cellSize);
                 const bGy = Math.floor(botObj.position.z / cellSize);
@@ -584,7 +577,6 @@ function draw2DMap() {
         }
     }
 
-    // Draw A* Path for Player (Yellow line)
     const endNode = { x: mazeWidth - 2, y: mazeHeight - 2 };
     let playerPath = solveAStar(mazeData.grid, playerGridPos, endNode);
     if (playerPath && playerPath.length > 0) {
@@ -592,41 +584,28 @@ function draw2DMap() {
         mapCtx.lineWidth = isMini ? 1 : 2;
         mapCtx.beginPath();
         mapCtx.moveTo(offsetX + playerPath[0].x * size + size/2, offsetY + playerPath[0].y * size + size/2);
-        for (let i = 1; i < playerPath.length; i++) {
-            mapCtx.lineTo(offsetX + playerPath[i].x * size + size/2, offsetY + playerPath[i].y * size + size/2);
-        }
+        for (let i = 1; i < playerPath.length; i++) mapCtx.lineTo(offsetX + playerPath[i].x * size + size/2, offsetY + playerPath[i].y * size + size/2);
         mapCtx.stroke();
     }
 
-    // Draw A* Path for Bot (Magenta line)
     if (botPath && botPath.length > 0 && botCurrentIndex < botPath.length) {
         mapCtx.strokeStyle = "rgba(255, 0, 255, 0.7)";
         mapCtx.lineWidth = isMini ? 1 : 2;
         mapCtx.beginPath();
         mapCtx.moveTo(offsetX + botPath[botCurrentIndex].x * size + size/2, offsetY + botPath[botCurrentIndex].y * size + size/2);
-        for (let i = botCurrentIndex + 1; i < botPath.length; i++) {
-            mapCtx.lineTo(offsetX + botPath[i].x * size + size/2, offsetY + botPath[i].y * size + size/2);
-        }
+        for (let i = botCurrentIndex + 1; i < botPath.length; i++) mapCtx.lineTo(offsetX + botPath[i].x * size + size/2, offsetY + botPath[i].y * size + size/2);
         mapCtx.stroke();
     }
 }
 
 function onKeyDown(e) {
     const k = e.key.toLowerCase();
-    if(k === 'm') mapState = (mapState + 1) % 3; // cycles 0, 1, 2
+    if(k === 'm') mapState = (mapState + 1) % 3; 
     if(k === 'v') isThirdPerson = !isThirdPerson;
     if(k === 'f') {
         config.flashlight = !config.flashlight;
         document.getElementById('opt-flashlight').checked = config.flashlight;
     }
-}
-
-function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    mapCanvas.width = window.innerWidth;
-    mapCanvas.height = window.innerHeight;
 }
 
 function setupUI() {
@@ -640,44 +619,26 @@ function setupUI() {
     bind('opt-candles', 'candelabras');
     bind('opt-bobbing', 'viewBobbing');
 
-    // Color Pickers logic
     const wallPicker = document.getElementById('wallColorPicker');
-    if(wallPicker) {
-        wallPicker.addEventListener('input', (e) => {
-            wallMat.color.set(e.target.value);
-        });
-    }
+    if(wallPicker) wallPicker.addEventListener('input', (e) => wallMat.color.set(e.target.value));
 
     const floorPicker = document.getElementById('floorColorPicker');
-    if(floorPicker) {
-        floorPicker.addEventListener('input', (e) => {
-            floorMat.color.set(e.target.value);
-        });
-    }
+    if(floorPicker) floorPicker.addEventListener('input', (e) => floorMat.color.set(e.target.value));
+
+    const setModern = (val) => {
+        config.isModern = val;
+        config.shadows = val;
+        config.flashlight = val;
+        config.candelabras = val;
+        config.viewBobbing = val;
+        updateCheckboxes();
+    };
 
     const btnModern = document.getElementById('btn-modern');
-    if(btnModern) {
-        btnModern.addEventListener('click', () => {
-            config.isModern = true;
-            config.shadows = true;
-            config.flashlight = true;
-            config.candelabras = true;
-            config.viewBobbing = true;
-            updateCheckboxes();
-        });
-    }
+    if(btnModern) btnModern.addEventListener('click', () => setModern(true));
 
     const btnClassic = document.getElementById('btn-classic');
-    if(btnClassic) {
-        btnClassic.addEventListener('click', () => {
-            config.isModern = false;
-            config.shadows = false;
-            config.flashlight = false;
-            config.candelabras = false;
-            config.viewBobbing = false;
-            updateCheckboxes();
-        });
-    }
+    if(btnClassic) btnClassic.addEventListener('click', () => setModern(false));
 }
 
 function updateCheckboxes() {
@@ -698,7 +659,6 @@ function createPlaceholderTexture(color) {
     ctx.fillStyle = color;
     ctx.fillRect(0,0,64,64);
     for(let i=0; i<200; i++) {
-        // Dark dots so they show up over white/tinted background
         ctx.fillStyle = `rgba(0,0,0,0.15)`; 
         ctx.fillRect(Math.random()*64, Math.random()*64, 2, 2);
     }

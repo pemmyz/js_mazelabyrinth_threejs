@@ -2,44 +2,64 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Maze Game: Three.js Redux</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-  <!-- Three.js will append its canvas here automatically -->
-  <div id="game-container"></div>
   
-  <!-- Countdown Overlay -->
-  <div id="countdown-layer">Bot Starts in: <span id="cnt-val">4</span></div>
+  <!-- THE SCREEN: Full Window width/height logic -->
+  <div id="screen">
+    <button id="mobile-btn">📱 Fullscreen / Mobile Controls</button>
 
-  <!-- 2D overlay for the map -->
-  <canvas id="mazeCanvas"></canvas>
+    <!-- Three.js will append its canvas here automatically -->
+    <div id="game-container"></div>
+    
+    <!-- Countdown Overlay -->
+    <div id="countdown-layer">Bot Starts in: <span id="cnt-val">4</span></div>
 
-  <!-- Options Menu -->
-  <div id="ui-layer">
-    <div id="settings-panel">
-        <h3>Settings</h3>
-        <button id="btn-modern">Preset: Modern</button>
-        <button id="btn-classic">Preset: Classic</button>
-        <hr>
-        <label><input type="checkbox" id="opt-shadows" checked> Shadows</label><br>
-        <label><input type="checkbox" id="opt-flashlight" checked> Flashlight</label><br>
-        <label><input type="checkbox" id="opt-candles" checked> Candelabras</label><br>
-        <label><input type="checkbox" id="opt-bobbing" checked> View Bobbing</label><br>
-        <hr>
-        <label class="custom-color-label">
-            Hedge Color
-            <input type="color" id="wallColorPicker" value="#1a4d1a">
-        </label><br>
-        <label class="custom-color-label">
-            Ground Color
-            <input type="color" id="floorColorPicker" value="#2d3a2d">
-        </label>
-        <div style="margin-top:10px; font-size:12px; color:#aaa;">
-            'M' toggles Minimap/Map, 'V' Camera, 'F' Flashlight
-        </div>
+    <!-- 2D overlay for the map -->
+    <canvas id="mazeCanvas"></canvas>
+
+    <!-- Options Menu -->
+    <div id="ui-layer">
+      <button id="toggle-settings-btn">Hide Settings</button>
+      
+      <div id="settings-panel">
+          <h3>Settings</h3>
+          <button id="btn-modern">Preset: Modern</button>
+          <button id="btn-classic">Preset: Classic</button>
+          <hr>
+          <label><input type="checkbox" id="opt-shadows" checked> Shadows</label><br>
+          <label><input type="checkbox" id="opt-flashlight" checked> Flashlight</label><br>
+          <label><input type="checkbox" id="opt-candles" checked> Candelabras</label><br>
+          <label><input type="checkbox" id="opt-bobbing" checked> View Bobbing</label><br>
+          <hr>
+          <label class="custom-color-label">
+              Hedge Color
+              <input type="color" id="wallColorPicker" value="#1a4d1a">
+          </label><br>
+          <label class="custom-color-label">
+              Ground Color
+              <input type="color" id="floorColorPicker" value="#2d3a2d">
+          </label>
+          <div style="margin-top:10px; font-size:12px; color:#aaa;">
+              'M' toggles Minimap/Map, 'V' Camera, 'F' Flashlight
+          </div>
+      </div>
     </div>
+  </div>
+
+  <!-- MOBILE TOUCH CONTROLS OVERLAY -->
+  <div id="mobile-controls">
+      <div id="mobile-dpad">
+          <button id="mobile-left" class="mobile-control-btn">◀</button>
+          <button id="mobile-right" class="mobile-control-btn">▶</button>
+      </div>
+      <div id="mobile-action">
+          <button id="mobile-up" class="mobile-control-btn">▲</button>
+      </div>
   </div>
 
   <script src="script.js"></script>

@@ -1,18 +1,68 @@
+/* ROOT & BODY SETUP */
 body {
   margin: 0;
-  overflow: hidden;
   background-color: #000;
   font-family: monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden; /* Makes the page tight, removes scrollbars entirely */
+  color: white;
+  touch-action: none;
 }
 
-#game-container {
+/* --- MOBILE MODE LOCK --- */
+body.mobile-mode {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+/* --- THE SCREEN (Full Window Width/Height) --- */
+#screen {
+  width: 100vw;  
+  height: 100vh; 
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+
+#game-container, #mazeCanvas {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 0;
+  width: 100%;
+  height: 100%;
 }
+
+#game-container { z-index: 0; }
+#mazeCanvas {
+  z-index: 10;
+  pointer-events: none; /* Let clicks pass through to UI */
+}
+
+/* --- TOGGLE BUTTON --- */
+#mobile-btn {
+  position: absolute;
+  top: 190px; /* Positioned perfectly below the 2D minimap bounds */
+  left: 15px;
+  z-index: 2000;
+  background: #333;
+  color: white;
+  border: 1px solid #aaa;
+  border-radius: 4px;
+  font-size: 13px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+#mobile-btn:hover { background: #555; }
+
+/* Hide the button when in mobile mode */
+body.mobile-mode #mobile-btn { display: none; }
 
 /* Countdown Overlay */
 #countdown-layer {
@@ -29,18 +79,7 @@ body {
   display: block;
 }
 
-/* Map Overlay */
-#mazeCanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 10;
-  pointer-events: none; /* Let clicks pass through to UI */
-}
-
-/* Settings Panel */
+/* Settings Panel & UI Layer */
 #ui-layer {
   position: absolute;
   top: 10px;
@@ -48,7 +87,23 @@ body {
   z-index: 20;
 }
 
+/* --- TOGGLE SETTINGS BUTTON --- */
+#toggle-settings-btn {
+  background: #333;
+  color: white;
+  border: 1px solid #666;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  float: right;
+  margin-bottom: 5px;
+}
+#toggle-settings-btn:hover {
+  background: #555;
+}
+
 #settings-panel {
+  clear: right; /* Forces it below the floated Hide Settings button */
   background: rgba(0, 0, 0, 0.7);
   color: #fff;
   padding: 15px;
@@ -68,7 +123,6 @@ body {
 }
 #settings-panel button:hover { background: #555; }
 
-/* Color Picker Styling */
 .custom-color-label {
   display: inline-flex;
   align-items: center;
@@ -83,9 +137,7 @@ body {
   border: 1px solid #444;
   width: 150px;
 }
-.custom-color-label:hover {
-  background: #34495e;
-}
+.custom-color-label:hover { background: #34495e; }
 .custom-color-label input[type="color"] {
   cursor: pointer;
   border: none;
@@ -93,4 +145,51 @@ body {
   width: 30px;
   padding: 0;
   background: none;
+}
+
+/* --- MOBILE CONTROLS OVERLAY --- */
+#mobile-controls {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; 
+  z-index: 3000;
+  display: none; 
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+/* Show controls only when in mobile mode */
+body.mobile-mode #mobile-controls { display: flex; }
+
+/* --- CONTROL BUTTONS --- */
+.mobile-control-btn {
+  pointer-events: auto; 
+  width: 90px; height: 90px;
+  background: rgba(255,255,255,0.15);
+  border: 3px solid rgba(255,255,255,0.4);
+  border-radius: 50%;
+  color: white;
+  font-size: 40px;
+  display: flex; justify-content: center; align-items: center;
+  user-select: none;
+  backdrop-filter: blur(4px);
+  margin-bottom: 20px;
+  transition: transform 0.1s, background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-control-btn:active {
+  background: rgba(255,255,255,0.4);
+  transform: scale(0.95);
+}
+#mobile-dpad {
+  display: flex;
+  gap: 15px;
+  margin-left: 20px;
+  margin-bottom: 20px;
+}
+#mobile-action {
+  margin-right: 40px;
+  margin-bottom: 40px;
 }
