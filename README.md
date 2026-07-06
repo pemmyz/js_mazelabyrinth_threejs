@@ -9,6 +9,11 @@ Navigate through a procedurally generated maze in first-person or third-person v
 
 ## Play it now: https://pemmyz.github.io/js_mazelabyrinth_threejs/
 
+## Screenshots
+
+### Game
+![Game 1](screenshots/game_1.png)
+
 ---
 
 ## 📸 Features
